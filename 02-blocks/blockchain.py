@@ -13,7 +13,8 @@ class Blockchain(object):
         self.createBlock()
 
     def createBlock(self, nonce=0, previousHash=None): 
-        previous_hash = '0'*64
+        previous_hash = '0'*64 #hash para o atributo previousHash do bloco genesis
+        
         ## calculo de hash dois a dois
         if( len(self.chain) > 0 ):
            previousBlock = dict(self.chain[-1])
@@ -22,7 +23,7 @@ class Blockchain(object):
 
         block = {
             'index': len(self.chain),
-            'timestamp': str(int(time.time())),
+            'timestamp': str(int(time.time())), #truncando o timestamp
             'nonce': nonce,
             'merkleRoot': '0'*64,
             'previousHash': previous_hash,
@@ -36,9 +37,8 @@ class Blockchain(object):
         return hashlib.sha256(blkSerial).hexdigest()
 
     def printChain(self):
-        for x in reversed(self.chain):
-            print( json.dumps(x, sort_keys=True).encode())
-            ## imprimindo hash do proprio bloco para comparar
+        for x in self.chain:
+            print(json.dumps(x, sort_keys=True).encode())
            
 
 # Teste

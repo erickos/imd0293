@@ -3,7 +3,7 @@ import json
 from time import time
 import copy
 
-DIFFICULTY = 5 # Quantidade de zeros (em hex) iniciais no hash válido.
+DIFFICULTY = 4 # Quantidade de zeros (em hex) iniciais no hash válido.
 
 class Blockchain(object):
 

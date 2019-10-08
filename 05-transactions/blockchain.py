@@ -50,7 +50,7 @@ class Blockchain(object):
 
     def createTransaction(self, sender, recipient, amount, timestamp, privKey):
         new_transaction = {
-        	"sender": sender,
+        	"sensder": sender,
         	"recipient": recipient,
         	"amount": amount,
         	"timestamp": timestamp
@@ -63,55 +63,32 @@ class Blockchain(object):
 
     @staticmethod
     def generateMerkleRoot(transactions):
-        listoftransaction = copy.copy(transactions)
-        past_transaction = OrderedDict()
-        temp_transaction = []
+        transactions_aux = copy.copy(transactions)
+        transactions_copy = []
 
-        # 3.1 Loop until the list finishes
-        for index in range(0,len(listoftransaction),2):
+        # gera o hash de cada transacao individualmente
+        for index in range(0, len(transactions_aux)):
+            transactions_copy.append(Blockchain.generateHash(str(transactions_aux[index])))
 
-# 3.2 Get the most left element 
-            current = listoftransaction[index]
+        # caso o numero de transacoes seja impar duplica o hash da ultima transacao
+        if len(transactions_copy) % 2 != 0:
+            transactions_copy.append(transactions_copy[-1])
 
-# 3.3 If there is still index left get the right of the left most element
-            if index+1 != len(listoftransaction):
-                current_right = listoftransaction[index+1]
+        # executara o loop ate que haja apenas um hash final
+        while len( transactions_copy ) > 1:
+            aux = 0
+            for index in range(0, len(transactions_copy)-1):
+                transactions_copy[aux] = hashlib.sha256(str(transactions_copy[index] + transactions_copy[index+1]).encode()).hexdigest()
+                
+                index += 2
+                aux += 1
 
-# 3.4 If we reached the limit of the list then make a empty string
-            else:
-                current_right = ''
+            hashsToDelete = index - aux
+            del transactions_copy[-hashsToDelete:]
 
-# 3.5 Apply the Hash 256 function to the current values
-            current_hash = hashlib.sha256(current)
-
-# 3.6 If the current right hash is not a '' <- empty string
-            if current_right != '':
-                current_right_hash = hashlib.sha256(current_right)
-
-# 3.7 Add the Transaction to the dictionary 
-            past_transaction[listoftransaction[index]] = current_hash.hexdigest()
-
-# 3.8 If the next right is not empty
-            if current_right != '':
-                past_transaction[listoftransaction[index+1]] = current_right_hash.hexdigest()
-
-# 3.9 Create the new list of transaction
-            if current_right != '':
-                temp_transaction.append(current_hash.hexdigest() + current_right_hash.hexdigest())
-
-# 3.01 If the left most is an empty string then only add the current value
-            else:
-                temp_transaction.append(current_hash.hexdigest())
-
-# 3.02 Update the variables and rerun the function again 
-            if len(listoftransaction) != 1:
-                self.listoftransaction = temp_transaction
-                self.past_transaction = past_transaction
-
-# 3.03 Call the function repeatly again and again until we get the root 
-                self.generateMerkleRoot(listoftransaction)
-        return listoftransaction[0]
-
+        if( len(transactions_copy) > 0 ):
+            return transactions_copy[0]
+    
     @staticmethod
     def isValidProof(block, nonce):
         block['nonce'] = nonce

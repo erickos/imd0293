@@ -4,8 +4,6 @@ from time import time
 import copy
 import random
 
-from collections import OrderedDict
-
 from bitcoin.wallet import CBitcoinSecret
 from bitcoin.signmessage import BitcoinMessage, VerifyMessage, SignMessage
 
@@ -16,6 +14,7 @@ class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.memPool = []
+        self.nodes = set() # Conjunto para armazenar os nós registrados.
         self.createGenesisBlock()
 
     def createGenesisBlock(self):
@@ -49,17 +48,41 @@ class Blockchain(object):
         return nonce
 
     def createTransaction(self, sender, recipient, amount, timestamp, privKey):
-        new_transaction = {
-        	"sensder": sender,
-        	"recipient": recipient,
-        	"amount": amount,
-        	"timestamp": timestamp
+        tx = {
+            'sender': sender,
+            'recipient': recipient,
+            'amount': amount,
+            'timestamp': timestamp
         }
+ 
+        tx['signature'] = Blockchain.sign(privKey, json.dumps(tx, sort_keys=True)).decode('utf-8')
+        self.memPool.append(tx)
 
-        signature = self.sign(privKey, json.dumps(new_transaction, sort_keys=True))
-        
-        new_transaction['signature'] = signature
-        self.memPool.append(new_transaction)
+        return self.prevBlock['index'] + 1
+
+    def isValidChain(self, chain):
+        # Dados uma chain passada como parâmetro, faz toda a verificação se o blockchain é válido
+        # 1. PoW válido
+        # 2. Transações assinadas e válidas
+        # 3. Merkle Root válido
+
+        for block in chain:
+            # Is not valid PoW
+            if not Blockchain.isValidProof(block, block['nonce']):
+                return False
+
+            # Invalid TXs
+            
+
+            # Valid Merkle Root
+            if block['merkleRoot'] != Blockchain.generateMerkleRoot(block['transactions']):
+                return false
+        pass
+
+    def resolveConflicts(self):
+        # Consulta todos os nós registrados, e verifica se algum outro nó tem um blockchain com mais PoW e válido. Em caso positivo,
+        # substitui seu próprio chain.
+        pass
 
     @staticmethod
     def generateMerkleRoot(transactions):
@@ -85,7 +108,7 @@ class Blockchain(object):
             newTxHashes.append(Blockchain.generateHash(Blockchain.generateHash(txHashes[i]) + Blockchain.generateHash(txHashes[i+1])))
         
         return Blockchain.hashTxHashes(newTxHashes)
-    
+
     @staticmethod
     def isValidProof(block, nonce):
         block['nonce'] = nonce
@@ -102,7 +125,7 @@ class Blockchain(object):
         blockCopy = copy.copy(block)
         blockCopy.pop("transactions", None)
         return Blockchain.generateHash(blockCopy)
-    
+
     def printChain(self):
         for block in reversed(self.chain):
             generated_hash = Blockchain.getBlockID(block)
@@ -133,20 +156,15 @@ class Blockchain(object):
         msg = BitcoinMessage(message)
         return VerifyMessage(address, msg, signature)
 
+# Implemente sua API com os end-points indicados no GitHub.
+# https://github.com/danilocurvelo/imd0293/tree/master/06-api
+# Implemente um teste com ao menos 2 nós simultaneos.
 
-# Teste
-blockchain = Blockchain()
+from flask import Flask
 
-sender = '19sXoSbfcQD9K66f5hwP5vLwsaRyKLPgXF'
-recipient = '1MxTkeEP2PmHSMze5tUZ1hAV3YTKu2Gh1N'
+app = Flask(__name__)
 
-# Cria 5 blocos, incluindo o Genesis, contendo de 1-4 transações cada, com valores aleatórios, entre os endereços indicados em sender e recipient.
-for x in range(0, 4): 
-    for y in range(0, random.randint(1,4)) : 
-        timestamp = int(time())
-        amount = random.uniform(0.00000001, 100)
-        blockchain.createTransaction(sender, recipient, amount, timestamp, 'L1US57sChKZeyXrev9q7tFm2dgA2ktJe2NP3xzXRv6wizom5MN1U')
-    blockchain.createBlock()
-    blockchain.mineProofOfWork(blockchain.prevBlock)
+@app.route('/transactions/create', methods=['POST'])
+def transactions_create():
+    
 
-blockchain.printChain()

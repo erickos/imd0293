@@ -72,7 +72,7 @@ class Blockchain(object):
                 return False
 
             # Invalid TXs
-            
+
 
             # Valid Merkle Root
             if block['merkleRoot'] != Blockchain.generateMerkleRoot(block['transactions']):
@@ -91,7 +91,7 @@ class Blockchain(object):
 
         txHashes = [] 
         for tx in transactions:
-            txHashes.append(Blockchain.generateHash(tx))
+            txHashes.append(Blockchain.generateHash(str(tx)))
 
         return Blockchain.hashTxHashes(txHashes)
 
@@ -105,7 +105,7 @@ class Blockchain(object):
 
         newTxHashes = []
         for i in range(0,len(txHashes),2):        
-            newTxHashes.append(Blockchain.generateHash(Blockchain.generateHash(txHashes[i]) + Blockchain.generateHash(txHashes[i+1])))
+            newTxHashes.append( hashlib.sha256( txHashes[i].encode('utf-8') + txHashes[i+1].encode('utf-8') ).hexdigest() )
         
         return Blockchain.hashTxHashes(newTxHashes)
 

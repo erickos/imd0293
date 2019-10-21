@@ -66,18 +66,43 @@ class Blockchain(object):
         # 2. Transações assinadas e válidas
         # 3. Merkle Root válido
 
-        for block in chain:
+        for index, block in enumerate(chain):
+            
+            # verify the previous hash in genesis block
+            if index == 0 and block['previousHash'] != ('0'*64):
+                return False 
+            
             # Is not valid PoW
             if not Blockchain.isValidProof(block, block['nonce']):
                 return False
 
-            # Invalid TXs
-
+            # The previous hash reference is not valid
+            if index > 0:
+                if block['previousHash'] != Blockchain.getBlockID(chain[index-1]):
+                    return False
 
             # Valid Merkle Root
             if block['merkleRoot'] != Blockchain.generateMerkleRoot(block['transactions']):
-                return false
-        pass
+                return False
+
+            # Invalid TXs
+            for tx in block["transactions"]:
+                if (
+                    not tx["sender"]
+                    or not tx["recipient"]
+                    or tx["timestamp"] > int(time())
+                    or tx["amount"] <= 0
+                    or not tx["signature"]
+                ):
+                    return False
+                
+                # if is not signed
+                txCopy = copy.copy(tx)
+                txCopy.pop('signature', None)
+                if ( not Blockchain.verifySignature(tx["sender"], tx['signature'], json.dumps(txCopy, sort_keys=True))):
+                    return False
+
+        return True
 
     def resolveConflicts(self):
         # Consulta todos os nós registrados, e verifica se algum outro nó tem um blockchain com mais PoW e válido. Em caso positivo,
@@ -105,7 +130,7 @@ class Blockchain(object):
 
         newTxHashes = []
         for i in range(0,len(txHashes),2):        
-            newTxHashes.append( hashlib.sha256( txHashes[i].encode('utf-8') + txHashes[i+1].encode('utf-8') ).hexdigest() )
+            newTxHashes.append( hashlib.sha256( (txHashes[i] + txHashes[i+1]).encode() ).hexdigest() )
         
         return Blockchain.hashTxHashes(newTxHashes)
 
@@ -160,11 +185,28 @@ class Blockchain(object):
 # https://github.com/danilocurvelo/imd0293/tree/master/06-api
 # Implemente um teste com ao menos 2 nós simultaneos.
 
-from flask import Flask
+blockchain = Blockchain()
 
-app = Flask(__name__)
+sender = '19sXoSbfcQD9K66f5hwP5vLwsaRyKLPgXF'
+recipient = '1MxTkeEP2PmHSMze5tUZ1hAV3YTKu2Gh1N'
 
-@app.route('/transactions/create', methods=['POST'])
-def transactions_create():
-    
+for x in range(0, 4): 
+    for y in range(0, random.randint(1,4)) : 
+        timestamp = int(time())
+        amount = random.uniform(0.00000001, 100)
+        blockchain.createTransaction(sender, recipient, amount, timestamp, 'L1US57sChKZeyXrev9q7tFm2dgA2ktJe2NP3xzXRv6wizom5MN1U')
+    blockchain.createBlock()
+    blockchain.mineProofOfWork(blockchain.prevBlock)
 
+blockchain.printChain()
+
+print( blockchain.isValidChain(blockchain.chain) )
+
+# from flask import Flask, request
+
+# app = Flask(__name__)
+
+# @app.route('/transactions/create', methods=['POST'])
+# def transactions_create():
+#     sender = request.args['sender']
+#     recipient = request.args['recipient']

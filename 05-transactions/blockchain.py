@@ -82,7 +82,7 @@ class Blockchain(object):
 
         newTxHashes = []
         for i in range(0,len(txHashes),2):        
-            newTxHashes.append( hashlib.sha256( txHashes[i].encode('utf-8') + txHashes[i+1].encode('utf-8') ).hexdigest() )
+            newTxHashes.append( hashlib.sha256( (txHashes[i] + txHashes[i+1]).encode() ).hexdigest() )
         
         return Blockchain.hashTxHashes(newTxHashes)
     

@@ -4,6 +4,9 @@ from time import time
 import copy
 import random
 
+from flask import Flask, request
+import requests
+
 from bitcoin.wallet import CBitcoinSecret
 from bitcoin.signmessage import BitcoinMessage, VerifyMessage, SignMessage
 
@@ -96,7 +99,7 @@ class Blockchain(object):
                 ):
                     return False
                 
-                # if is not signed
+                # if the tx is not signed and if is valid
                 txCopy = copy.copy(tx)
                 txCopy.pop('signature', None)
                 if ( not Blockchain.verifySignature(tx["sender"], tx['signature'], json.dumps(txCopy, sort_keys=True))):
@@ -105,9 +108,42 @@ class Blockchain(object):
         return True
 
     def resolveConflicts(self):
-        # Consulta todos os nós registrados, e verifica se algum outro nó tem um blockchain com mais PoW e válido. Em caso positivo,
-        # substitui seu próprio chain.
-        pass
+        
+        # set of the registered nodes
+        neighbours = self.nodes
+        # future new valid chain
+        newChain = None
+        newMempool = None
+
+        # length of the current chain
+        currentChainLength = len(self.chain)
+
+        for node in neighbours:
+            responseChain = requests.get(f'http://{node}/chain')
+            responseMempool = requests.get(f'http://{node}/transactions/mempool')
+
+            
+            if responseChain.status_code == 200:
+                currentNodeChain = responseChain.json()['chain']
+                currentNodeLength = len(currentNodeChain)
+                currentMempool = None
+
+                if responseMempool.status_code == 200:
+                    currentMempool = responseMempool.json()['mempool']
+
+                if currentNodeLength > currentChainLength and Blockchain.isValidChain(currentNodeChain):
+                    currentChainLength = currentNodeLength
+                    newChain = currentNodeChain
+                    newMempool = currentMempool
+            
+
+        if newChain and newMempool:
+            self.chain = newChain
+            self.memPool = newMempool
+            return True
+
+        return False
+
 
     @staticmethod
     def generateMerkleRoot(transactions):
@@ -130,7 +166,7 @@ class Blockchain(object):
 
         newTxHashes = []
         for i in range(0,len(txHashes),2):        
-            newTxHashes.append( hashlib.sha256( (txHashes[i] + txHashes[i+1]).encode() ).hexdigest() )
+            newTxHashes.append( Blockchain.generateHash( str(txHashes[i] + txHashes[i+1]) ))
         
         return Blockchain.hashTxHashes(newTxHashes)
 
@@ -200,13 +236,40 @@ for x in range(0, 4):
 
 blockchain.printChain()
 
+for y in range(0, random.randint(1,4)) : 
+        timestamp = int(time())
+        amount = random.uniform(0.00000001, 100)
+        blockchain.createTransaction(sender, recipient, amount, timestamp, 'L1US57sChKZeyXrev9q7tFm2dgA2ktJe2NP3xzXRv6wizom5MN1U')
+
 print( blockchain.isValidChain(blockchain.chain) )
 
-# from flask import Flask, request
+##################################################################################################################################
 
-# app = Flask(__name__)
+app = Flask(__name__) 
 
-# @app.route('/transactions/create', methods=['POST'])
-# def transactions_create():
-#     sender = request.args['sender']
-#     recipient = request.args['recipient']
+@app.route('/transactions/create', methods=['POST'])
+def transactions_create():
+    sender = request.args['sender']
+    recipient = request.args['recipient']
+    amount = float(request.args['amount'])
+    return 'test'
+
+@app.route('/transactions/mempool', methods=['GET'])
+def get_mempool():
+    return { 'mempool' : blockchain.memPool }
+
+@app.route('/mine', methods=['GET'])
+def mine():
+    return 1
+
+@app.route('/chain', methods=['GET'])
+def get_chain():
+    return { 'chain': blockchain.chain }
+
+@app.route('/nodes/register', methods=['POST'])
+def register_nodes():
+    return 2
+
+@app.route('/nodex/resolve', methods=['GET'])
+def resolve_nodes():
+    return 10

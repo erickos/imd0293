@@ -10,14 +10,14 @@ import requests
 from bitcoin.wallet import CBitcoinSecret
 from bitcoin.signmessage import BitcoinMessage, VerifyMessage, SignMessage
 
-DIFFICULTY = 4 # Quantidade de zeros (em hex) iniciais no hash válido.
+DIFFICULTY = 4 # Quantidade de zeros (em hex) iniciais no hash valido.
 
 class Blockchain(object):
 
     def __init__(self):
         self.chain = []
         self.memPool = []
-        self.nodes = set() # Conjunto para armazenar os nós registrados.
+        self.nodes = set() # Conjunto para armazenar os nos registrados.
         self.createGenesisBlock()
 
     def createGenesisBlock(self):
@@ -61,7 +61,7 @@ class Blockchain(object):
         tx['signature'] = Blockchain.sign(privKey, json.dumps(tx, sort_keys=True)).decode('utf-8')
         self.memPool.append(tx)
 
-        return self.prevBlock['index'] + 1
+        return tx  #self.prevBlock['index'] + 1
 
     def isValidChain(self, chain):
         # Dados uma chain passada como parâmetro, faz toda a verificação se o blockchain é válido
@@ -72,7 +72,7 @@ class Blockchain(object):
         for index, block in enumerate(chain):
             
             # verify the previous hash in genesis block
-            if index == 0 and block['previousHash'] != ('0'*64):
+            if index == 1 and block['previousHash'] != ('0'*64):
                 return False 
             
             # Is not valid PoW
@@ -80,7 +80,7 @@ class Blockchain(object):
                 return False
 
             # The previous hash reference is not valid
-            if index > 0:
+            if index > 1:
                 if block['previousHash'] != Blockchain.getBlockID(chain[index-1]):
                     return False
 
@@ -113,32 +113,32 @@ class Blockchain(object):
         neighbours = self.nodes
         # future new valid chain
         newChain = None
+
+        # future new valid mempool
         newMempool = None
 
         # length of the current chain
         currentChainLength = len(self.chain)
-
+        
+        # request every registered node chain
         for node in neighbours:
             responseChain = requests.get(f'http://{node}/chain')
+            print( 'getting chain from ' + node )
             responseMempool = requests.get(f'http://{node}/transactions/mempool')
-
+            print( 'getting mempool from ' + node )
+            currentNodeChain = responseChain.json()['chain']
+            currentNodeLength = len(currentNodeChain)
             
-            if responseChain.status_code == 200:
-                currentNodeChain = responseChain.json()['chain']
-                currentNodeLength = len(currentNodeChain)
-                currentMempool = None
+            currentMempool = None
+            currentMempool = responseMempool.json()['mempool']
 
-                if responseMempool.status_code == 200:
-                    currentMempool = responseMempool.json()['mempool']
+            if currentNodeLength > currentChainLength and self.isValidChain(currentNodeChain):
+                currentChainLength = currentNodeLength
+                newChain = currentNodeChain
+                newMempool = currentMempool
 
-                if currentNodeLength > currentChainLength and Blockchain.isValidChain(currentNodeChain):
-                    currentChainLength = currentNodeLength
-                    newChain = currentNodeChain
-                    newMempool = currentMempool
-            
-
-        if newChain and newMempool:
-            self.chain = newChain
+        if newChain and newMempool:    
+            self.chain = newChain 
             self.memPool = newMempool
             return True
 
@@ -152,7 +152,7 @@ class Blockchain(object):
 
         txHashes = [] 
         for tx in transactions:
-            txHashes.append(Blockchain.generateHash(str(tx)))
+            txHashes.append(Blockchain.generateHash(tx))
 
         return Blockchain.hashTxHashes(txHashes)
 
@@ -165,8 +165,8 @@ class Blockchain(object):
             txHashes.append(txHashes[-1]) # Se não for, duplica o último hash.
 
         newTxHashes = []
-        for i in range(0,len(txHashes),2):        
-            newTxHashes.append( Blockchain.generateHash( str(txHashes[i] + txHashes[i+1]) ))
+        for i in range(0,len(txHashes),2):       
+            newTxHashes.append( Blockchain.generateHash( Blockchain.generateHash(txHashes[i]) + Blockchain.generateHash(txHashes[i+1]) ) )
         
         return Blockchain.hashTxHashes(newTxHashes)
 
@@ -225,23 +225,7 @@ blockchain = Blockchain()
 
 sender = '19sXoSbfcQD9K66f5hwP5vLwsaRyKLPgXF'
 recipient = '1MxTkeEP2PmHSMze5tUZ1hAV3YTKu2Gh1N'
-
-for x in range(0, 4): 
-    for y in range(0, random.randint(1,4)) : 
-        timestamp = int(time())
-        amount = random.uniform(0.00000001, 100)
-        blockchain.createTransaction(sender, recipient, amount, timestamp, 'L1US57sChKZeyXrev9q7tFm2dgA2ktJe2NP3xzXRv6wizom5MN1U')
-    blockchain.createBlock()
-    blockchain.mineProofOfWork(blockchain.prevBlock)
-
-blockchain.printChain()
-
-for y in range(0, random.randint(1,4)) : 
-        timestamp = int(time())
-        amount = random.uniform(0.00000001, 100)
-        blockchain.createTransaction(sender, recipient, amount, timestamp, 'L1US57sChKZeyXrev9q7tFm2dgA2ktJe2NP3xzXRv6wizom5MN1U')
-
-print( blockchain.isValidChain(blockchain.chain) )
+privKey = 'L1US57sChKZeyXrev9q7tFm2dgA2ktJe2NP3xzXRv6wizom5MN1U'
 
 ##################################################################################################################################
 
@@ -252,7 +236,11 @@ def transactions_create():
     sender = request.args['sender']
     recipient = request.args['recipient']
     amount = float(request.args['amount'])
-    return 'test'
+    timestamp = int(time())
+
+    if not blockchain.createTransaction(sender, recipient, amount, timestamp, privKey):
+        return 'Status code 500. Error TX not created'
+    return 'Status code 200. TX created'
 
 @app.route('/transactions/mempool', methods=['GET'])
 def get_mempool():
@@ -260,7 +248,10 @@ def get_mempool():
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    return 1
+    if not blockchain.createBlock():
+        return 'Status code 500. Block not created'
+    blockchain.mineProofOfWork(blockchain.prevBlock)
+    return 'Status code 200. Block created'
 
 @app.route('/chain', methods=['GET'])
 def get_chain():
@@ -268,8 +259,22 @@ def get_chain():
 
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
-    return 2
+    nodes = request.args['nodes'] # address in this form [ip1:port1, ip2:port2]
+    
+    # clean and split the data
+    nodes = nodes.replace('[', '')
+    nodes = nodes.replace(']', '')
+    nodes = nodes.split(',')
 
-@app.route('/nodex/resolve', methods=['GET'])
+
+    for node in nodes:
+        print( node )
+        blockchain.nodes.add(node)
+    
+    return {'registered_nodes': blockchain.nodes}
+
+@app.route('/nodes/resolve', methods=['GET'])
 def resolve_nodes():
-    return 10
+    if not blockchain.resolveConflicts():
+        return 'Chain not changed'
+    return 'Chain changed'

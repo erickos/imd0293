@@ -64,28 +64,37 @@ class Blockchain(object):
         return tx  #self.prevBlock['index'] + 1
 
     def isValidChain(self, chain):
-        # Dados uma chain passada como parâmetro, faz toda a verificação se o blockchain é válido
-        # 1. PoW válido
-        # 2. Transações assinadas e válidas
-        # 3. Merkle Root válido
+        # Dados uma chain passada como parametro, faz toda a verificacao se o blockchain e valido
+        # 1. PoW valido
+        # 2. Transacoes assinadas e validas
+        # 3. Merkle Root valido
 
-        for index, block in enumerate(chain):
+        for block in chain:
             
             # verify the previous hash in genesis block
-            if index == 1 and block['previousHash'] != ('0'*64):
+            if block['index'] == 1 and block['previousHash'] != ('0'*64):
+                print( 'genesis prev hash' )
                 return False 
             
             # Is not valid PoW
             if not Blockchain.isValidProof(block, block['nonce']):
+                print( 'valid proof' )
                 return False
 
+            aux = Blockchain.getBlockID( chain[ block['index'] -2 ] )
             # The previous hash reference is not valid
-            if index > 1:
-                if block['previousHash'] != Blockchain.getBlockID(chain[index-1]):
+            if block['index'] > 1:
+                if block['previousHash'] != Blockchain.getBlockID( chain[ block['index'] -2 ] ):
+                    print( 'block prev hash ')
+                    print( type(block['previousHash']) )
+                    print( block['previousHash'] )
+                    print( type(aux) )
+                    print(aux)
                     return False
 
             # Valid Merkle Root
             if block['merkleRoot'] != Blockchain.generateMerkleRoot(block['transactions']):
+                print( 'merkle root' )
                 return False
 
             # Invalid TXs
@@ -97,12 +106,14 @@ class Blockchain(object):
                     or tx["amount"] <= 0
                     or not tx["signature"]
                 ):
+                    print( 'tx error' )
                     return False
                 
                 # if the tx is not signed and if is valid
                 txCopy = copy.copy(tx)
                 txCopy.pop('signature', None)
                 if ( not Blockchain.verifySignature(tx["sender"], tx['signature'], json.dumps(txCopy, sort_keys=True))):
+                    print( 'signature error' )
                     return False
 
         return True
@@ -115,7 +126,7 @@ class Blockchain(object):
         newChain = None
 
         # future new valid mempool
-        newMempool = None
+        # newMempool = None
 
         # length of the current chain
         currentChainLength = len(self.chain)
@@ -124,26 +135,21 @@ class Blockchain(object):
         for node in neighbours:
             responseChain = requests.get(f'http://{node}/chain')
             print( 'getting chain from ' + node )
-            responseMempool = requests.get(f'http://{node}/transactions/mempool')
-            print( 'getting mempool from ' + node )
             currentNodeChain = responseChain.json()['chain']
             currentNodeLength = len(currentNodeChain)
-            
-            currentMempool = None
-            currentMempool = responseMempool.json()['mempool']
 
+            print( currentChainLength )
+            print( currentNodeLength  )
+            
             if currentNodeLength > currentChainLength and self.isValidChain(currentNodeChain):
                 currentChainLength = currentNodeLength
                 newChain = currentNodeChain
-                newMempool = currentMempool
 
-        if newChain and newMempool:    
+        if newChain:    
             self.chain = newChain 
-            self.memPool = newMempool
             return True
-
+        print('resolveConfl')
         return False
-
 
     @staticmethod
     def generateMerkleRoot(transactions):
@@ -158,15 +164,15 @@ class Blockchain(object):
 
     @staticmethod
     def hashTxHashes(txHashes):
-        if (len(txHashes) == 1): # Condição de parada.
+        if (len(txHashes) == 1): # Condicao de parada.
             return txHashes[0]
 
-        if (len(txHashes)%2 != 0): # Confere se a quantidade de hashes é par.
-            txHashes.append(txHashes[-1]) # Se não for, duplica o último hash.
+        if (len(txHashes)%2 != 0): # Confere se a quantidade de hashes e par.
+            txHashes.append(txHashes[-1]) # Se nao for, duplica o ultimo hash.
 
         newTxHashes = []
         for i in range(0,len(txHashes),2):       
-            newTxHashes.append( Blockchain.generateHash( Blockchain.generateHash(txHashes[i]) + Blockchain.generateHash(txHashes[i+1]) ) )
+            newTxHashes.append( Blockchain.generateHash( txHashes[i] + txHashes[i+1] ) )
         
         return Blockchain.hashTxHashes(newTxHashes)
 
@@ -266,12 +272,11 @@ def register_nodes():
     nodes = nodes.replace(']', '')
     nodes = nodes.split(',')
 
-
     for node in nodes:
         print( node )
         blockchain.nodes.add(node)
     
-    return {'registered_nodes': blockchain.nodes}
+    return {'registered_nodes': list(blockchain.nodes)}
 
 @app.route('/nodes/resolve', methods=['GET'])
 def resolve_nodes():

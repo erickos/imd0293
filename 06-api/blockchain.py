@@ -61,7 +61,7 @@ class Blockchain(object):
         tx['signature'] = Blockchain.sign(privKey, json.dumps(tx, sort_keys=True)).decode('utf-8')
         self.memPool.append(tx)
 
-        return tx  #self.prevBlock['index'] + 1
+        return tx 
 
     def isValidChain(self, chain):
         # Dados uma chain passada como parametro, faz toda a verificacao se o blockchain e valido
@@ -73,28 +73,19 @@ class Blockchain(object):
             
             # verify the previous hash in genesis block
             if block['index'] == 1 and block['previousHash'] != ('0'*64):
-                print( 'genesis prev hash' )
                 return False 
             
             # Is not valid PoW
             if not Blockchain.isValidProof(block, block['nonce']):
-                print( 'valid proof' )
                 return False
 
-            aux = Blockchain.getBlockID( chain[ block['index'] -2 ] )
             # The previous hash reference is not valid
             if block['index'] > 1:
                 if block['previousHash'] != Blockchain.getBlockID( chain[ block['index'] -2 ] ):
-                    print( 'block prev hash ')
-                    print( type(block['previousHash']) )
-                    print( block['previousHash'] )
-                    print( type(aux) )
-                    print(aux)
                     return False
 
             # Valid Merkle Root
             if block['merkleRoot'] != Blockchain.generateMerkleRoot(block['transactions']):
-                print( 'merkle root' )
                 return False
 
             # Invalid TXs
@@ -106,14 +97,12 @@ class Blockchain(object):
                     or tx["amount"] <= 0
                     or not tx["signature"]
                 ):
-                    print( 'tx error' )
                     return False
                 
                 # if the tx is not signed and if is valid
                 txCopy = copy.copy(tx)
                 txCopy.pop('signature', None)
                 if ( not Blockchain.verifySignature(tx["sender"], tx['signature'], json.dumps(txCopy, sort_keys=True))):
-                    print( 'signature error' )
                     return False
 
         return True
@@ -124,9 +113,6 @@ class Blockchain(object):
         neighbours = self.nodes
         # future new valid chain
         newChain = None
-
-        # future new valid mempool
-        # newMempool = None
 
         # length of the current chain
         currentChainLength = len(self.chain)
@@ -148,7 +134,6 @@ class Blockchain(object):
         if newChain:    
             self.chain = newChain 
             return True
-        print('resolveConfl')
         return False
 
     @staticmethod

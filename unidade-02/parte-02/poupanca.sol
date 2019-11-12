@@ -1,6 +1,6 @@
 // Nome: Erick de Oliveira Silva
 // Nome: Juliana Barbosa dos Santos
-// Conta do contrato: <link da conta do seu contrato após o deploy>
+// Conta do contrato: <https://ropsten.etherscan.io/address/0x3b417f9562e3eaa74387107b2f5280121dd03967>
 
 pragma  solidity  ^0.4.25; // Fique a vontade caso queira utilizar outra versão.
 
@@ -38,7 +38,12 @@ contract  Poupanca {
 	}
 	
 	function getRemainingTimeToUnlock() public view returns (uint) {
-	    return ( UserToDeposits[msg.sender].timeToUnlock - now ) / 1 days;
+	    if( now < UserToDeposits[msg.sender].timeToUnlock ) {
+	        return ( UserToDeposits[msg.sender].timeToUnlock - now ) / 1 days;    
+	    }
+	    
+	    return 0;
+	    
 	}
 	
 	function consultPenalty() public view returns (uint) {
